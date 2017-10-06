@@ -2,7 +2,29 @@
 
 #include <boost/regex.hpp>
 
+#include "scanio/scan_io.h"
 #include "show/program_options.h"
+#include "slam6d/io_types.h"
+
+// TODO this should be in scanio
+unsigned int iodatatype_to_pointtype(IODataType type) {
+  switch (type) {
+    case DATA_RGB:
+      return PointType::USE_COLOR;
+    case DATA_REFLECTANCE:
+      return PointType::USE_REFLECTANCE;
+    case DATA_TEMPERATURE:
+      return PointType::USE_TEMPERATURE;
+    case DATA_AMPLITUDE:
+      return PointType::USE_AMPLITUDE;
+    case DATA_TYPE:
+      return PointType::USE_TYPE;
+    case DATA_DEVIATION:
+      return PointType::USE_DEVIATION;
+    default:
+      return 0;
+  }
+}
 
 void parse_args(int argc, char **argv, dataset_settings& ds, window_settings& ws, bool *directory_present) {
   using namespace boost::program_options;
@@ -291,17 +313,13 @@ void parse_args(int argc, char **argv, dataset_settings& ds, window_settings& ws
   // Bitset for initializing PointTypes
   unsigned int types = PointType::USE_NONE;
 
-  // RGB formats imply colored points
-  switch (ds.format) {
-    case UOS_RGB:
-    case UOS_RRGBT:
-    case RIEGL_RGB:
-    case XYZ_RGB:
-    case KS_RGB:
-      types |= PointType::USE_COLOR;
-      break;
-    default:
-      break;
+  // Suggest point data to automatically load
+  for (IODataType feature : {DATA_RGB, DATA_REFLECTANCE, DATA_TEMPERATURE, DATA_AMPLITUDE, DATA_TYPE, DATA_DEVIATION}) {
+    // TODO don't load every library just to ask them about their support, instead save this info statically
+    ScanIO *library = ScanIO::getScanIO(ds.format);
+    if (library->supports(feature)) {
+      types |= iodatatype_to_pointtype(feature);
+    }
   }
 
   // Coloring bool_switch names mapped to their PointType bit,
