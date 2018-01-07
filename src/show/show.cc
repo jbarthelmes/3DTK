@@ -108,10 +108,13 @@ void updateTopViewControls() {
 
   
 void updateControls() {
+  // FIXME on amdgpu this function prevents glClear or similar
+#ifndef AMDGPU
   glui1->sync_live();
   glui1->show();
   glui2->sync_live();
   glui2->show();
+#endif
 }
 
 static bool interrupted = false;
