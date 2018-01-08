@@ -1,7 +1,5 @@
 #include <map>
 
-#include <boost/regex.hpp>
-
 #include "scanio/scan_io.h"
 #include "show/program_options.h"
 #include "slam6d/io_types.h"
@@ -92,21 +90,6 @@ void parse_args(int argc, char **argv, dataset_settings& ds, window_settings& ws
   color_options.add_options()
     ("bgcolor", value(&ds.coloring.bgcolor)->default_value(Color(0,0,0), "0,0,0"),
      "Drawing area background color, given as \"%f,%f,%f\" for red, green and blue.")
-    ("color,c", bool_switch(&ds.coloring.explicit_coloring),
-      "Use included RGB values for coloring points.")
-    ("reflectance,R", bool_switch(),
-      "Use reflectance values for coloring point clouds.")
-    ("temperature,D", bool_switch(),
-      "Use temperature values for coloring point clouds.")
-    ("amplitude,a", bool_switch(),
-      "Use amplitude values for coloring point clouds.")
-    ("deviation,d", bool_switch(),
-      "Use deviation values for coloring point clouds.")
-    ("height,h", bool_switch(),
-      "Use y-height values for coloring point clouds.")
-    ("type,T", bool_switch(),
-      "Use type values for coloring point clouds.")
-    ("time,t", bool_switch()) // TODO description
     ("colormap",
       value(&ds.coloring.colormap)->default_value(ShowColormap::solid, "solid"),
       "With which colors to color the points, according to their color value "
@@ -120,8 +103,8 @@ void parse_args(int argc, char **argv, dataset_settings& ds, window_settings& ws
       "Do not switch to different color settings when displaying animation")
     ;
 
-  options_description scan_options("Scan selection");
-  scan_options.add_options()
+  options_description selection_options("Scan loading");
+  selection_options.add_options()
     ("scanserver,S", bool_switch(&ds.use_scanserver),
       "Use the scanserver as an input method and for handling scan data.")
     ("start,s", value(&ds.scan_numbers.min)->default_value(0), "Start at this scan number (0-based)")
@@ -131,6 +114,18 @@ void parse_args(int argc, char **argv, dataset_settings& ds, window_settings& ws
       "Available values: uos, uos_map, uos_rgb, uos_frames, uos_map_frames, "
       "old, rts, rts_map, ifp, riegl_txt, riegl_rgb, riegl_bin, zahn, ply, "
       "wrl, xyz, zuf, iais, front, x3d, rxp, ais.")
+    ("no-color,c", bool_switch(),
+     "Do not load RGB data.")
+    ("no-reflectance,R", bool_switch(),
+     "Do not load reflectance data.")
+    ("no-temperature,D", bool_switch(),
+     "Do not load temperature data.")
+    ("no-amplitude,a", bool_switch(),
+     "Do not load amplitude data.")
+    ("no-deviation,d", bool_switch(),
+     "Do not load deviation data.")
+    ("no-type,T", bool_switch(),
+     "Do not load type data.")
     ;
 
   options_description reduction_options("Point reduction");
@@ -204,7 +199,7 @@ void parse_args(int argc, char **argv, dataset_settings& ds, window_settings& ws
     .add(gui_options)
     .add(display_options)
     .add(color_options)
-    .add(scan_options)
+    .add(selection_options)
     .add(reduction_options)
     .add(point_options)
     .add(file_options)
@@ -312,7 +307,6 @@ void parse_args(int argc, char **argv, dataset_settings& ds, window_settings& ws
 
   // Bitset for initializing PointTypes
   unsigned int types = PointType::USE_NONE;
-
   // Suggest point data to automatically load
   for (IODataType feature : {DATA_RGB, DATA_REFLECTANCE, DATA_TEMPERATURE, DATA_AMPLITUDE, DATA_TYPE, DATA_DEVIATION}) {
     // TODO don't load every library just to ask them about their support, instead save this info statically
@@ -321,6 +315,7 @@ void parse_args(int argc, char **argv, dataset_settings& ds, window_settings& ws
       types |= iodatatype_to_pointtype(feature);
     }
   }
+  std::cout << types << std::endl;
 
   // Coloring bool_switch names mapped to their PointType bit,
   // in the order in which they should be the default coloring
@@ -334,7 +329,26 @@ void parse_args(int argc, char **argv, dataset_settings& ds, window_settings& ws
     {"type",        PointType::USE_TYPE},
     {"color",       PointType::USE_COLOR}
   };
+  std::cout << "listing disabled types" << std::endl;
 
+  // Bitset for disabled point data
+  unsigned int types_disabled = PointType::USE_NONE;
+  for (auto const &kv_pair : point_type_flags) {
+    std::cout << "no-" + kv_pair.first << ": ";
+    if (!vm["no-" + kv_pair.first].empty() && vm["no-" + kv_pair.first].as<bool>()) {
+      types_disabled |= kv_pair.second;
+      std::cout << types_disabled << std::endl;
+
+    }
+  }
+
+  std::cout << "final output" << std::endl;
+  std::cout << types_disabled << std::endl;
+  std::cout << ~types_disabled << std::endl;
+  types &= ~types_disabled;
+  std::cout << types << std::endl;
+
+  #if 0
   // These are the names for values of listboxColorVal
   std::array<string, 6> colorval_names {"height", "reflectance", "temperature", "amplitude", "deviation", "type"};
 
@@ -350,6 +364,7 @@ void parse_args(int argc, char **argv, dataset_settings& ds, window_settings& ws
       }
     }
   }
+  #endif
 
   ds.coloring.ptype = PointType(types);
 
